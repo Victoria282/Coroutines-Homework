@@ -7,9 +7,9 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.isVisible
 import com.squareup.picasso.Picasso
-import otus.homework.coroutines.data.Fact
-import otus.homework.coroutines.data.Picture
+import otus.homework.coroutines.data.Result
 
 class CatsView @JvmOverloads constructor(
     context: Context,
@@ -17,28 +17,34 @@ class CatsView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : ConstraintLayout(context, attrs, defStyleAttr), ICatsView {
 
-    var presenter: CatsPresenter? = null
+    var viewModel: CatsViewModel? = null
 
     override fun onFinishInflate() {
         super.onFinishInflate()
         findViewById<Button>(R.id.button).setOnClickListener {
-            presenter?.onInitComplete()
+            viewModel?.onInitComplete()
         }
     }
 
-    override fun populate(fact: Fact, pict: Picture) {
-        findViewById<TextView>(R.id.fact_textView).text = fact.fact
-        Picasso.get()
-            .load(pict.url)
-            .into(findViewById<ImageView>(R.id.pic_imageView))
-    }
+    override fun populate(result: Result) {
+        findViewById<TextView>(R.id.progressBar).isVisible = result is Result.Loading
+        when (result) {
+            is Result.Error -> {
+                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+            }
 
-    override fun showMessage(message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            is Result.Success -> {
+                findViewById<TextView>(R.id.fact_textView).text = result.fact.fact
+                Picasso.get()
+                    .load(result.picture.url)
+                    .into(findViewById<ImageView>(R.id.pic_imageView))
+            }
+
+            else -> {}
+        }
     }
 }
 
 interface ICatsView {
-    fun populate(fact: Fact, pict: Picture)
-    fun showMessage(message: String)
+    fun populate(result: Result)
 }

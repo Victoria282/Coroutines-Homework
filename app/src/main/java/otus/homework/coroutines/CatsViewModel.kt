@@ -1,28 +1,28 @@
 package otus.homework.coroutines
 
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import otus.homework.coroutines.data.Result
 import otus.homework.coroutines.service.CatsService
 import otus.homework.coroutines.service.PicsService
 import java.net.SocketTimeoutException
 
-class CatsPresenter(
+class CatsViewModel(
     private val catsService: CatsService,
     private val picsService: PicsService
-) {
+) : ViewModel() {
 
-    private val job = Job()
-    private val presenterScope = CoroutineScope(
-        Dispatchers.Main + job + CoroutineName("CatsCoroutine")
-    )
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, _ ->
+        CrashMonitor.trackWarning()
+    }
+
     private var _catsView: ICatsView? = null
 
-    fun onInitComplete() = presenterScope.launch {
-
+    fun onInitComplete() = viewModelScope.launch(coroutineExceptionHandler) {
+        _catsView?.populate(Result.Loading)
         try {
             val factDeferred = async { catsService.getCatFact() }
             val picDeferred = async { picsService.getPics() }
@@ -31,18 +31,14 @@ class CatsPresenter(
             val pic = picDeferred.await()
 
             if (fact.isSuccessful && fact.body() != null && pic.isSuccessful && pic.body() != null) {
-                _catsView?.populate(fact.body()!!, pic.body()!!.first())
+                _catsView?.populate(Result.Success(fact.body()!!, pic.body()!!.first()))
             }
         } catch (e: SocketTimeoutException) {
-            _catsView?.showMessage("Не удалось получить ответ от сервером")
+            _catsView?.populate(Result.Error("Не удалось получить ответ от сервером"))
         } catch (e: Exception) {
             CrashMonitor.trackWarning()
-            _catsView?.showMessage(e.message ?: "Ошибка")
+            _catsView?.populate(Result.Error("Ошибка"))
         }
-    }
-
-    fun onInitStop() {
-        job.cancel()
     }
 
     fun attachView(catsView: ICatsView) {
